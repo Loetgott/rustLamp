@@ -1,4 +1,5 @@
 mod color_picker;
+mod artNetSender;
 
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow};
@@ -10,7 +11,7 @@ fn main() {
     app.connect_activate(|app| {
         let window1 = ApplicationWindow::new(app);
         window1.set_title(Option::from("ColorPicker Test"));
-        window1.set_decorated(false);
+        window1.set_decorated(true);
         window1.set_default_size(400, 300);
 
         let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
