@@ -2,13 +2,16 @@ use gtk4::prelude::*;
 use gtk4::{self as gtk, Box as GtkBox, DrawingArea, Stack};
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::color::Color;
 
 pub struct ColorPicker {
     root: GtkBox,
+    color: Color,
 }
 
 impl ColorPicker {
-    pub fn new() -> Self {
+    pub fn new(mut color: Color) -> Self {
+
         // Winkel der Maus & Linksklickstatus
         let mouse_angle = Rc::new(RefCell::new(0.0));
         let left_button_pressed = Rc::new(RefCell::new(false));
@@ -37,9 +40,10 @@ impl ColorPicker {
                 let radius = cx.min(cy) - circle_width;
 
                 // HSV-Ring
+                let offset = -std::f64::consts::PI / 2.0; // 0° (Rot) nach oben
                 for i in 0..360 {
-                    let angle1 = (i as f64).to_radians();
-                    let angle2 = ((i + 1) as f64).to_radians();
+                    let angle1 = (i as f64).to_radians() + offset - 0.005;
+                    let angle2 = ((i + 1) as f64).to_radians() + offset;
                     let (r, g, b) = hsv_to_rgb(i as f64 / 360.0, 1.0, 1.0);
 
                     cr.set_source_rgb(r, g, b);
@@ -61,7 +65,22 @@ impl ColorPicker {
                     points.push((x, y));
                 }
 
-                cr.set_source_rgb(0.0, 0.0, 0.0);
+                let angle = -*mouse_angle.borrow(); // [-π, π], 0 oben
+                // Negieren, um Uhrzeigersinn zu bekommen
+                let hue = ((-angle).rem_euclid(2.0 * std::f64::consts::PI)) / (2.0 * std::f64::consts::PI);
+                println!("{}", hue);
+                color.set_hsv(
+                    map(hue as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16,
+                    1,
+                    1,
+                );
+
+
+                let (r, g, b) = hsv_to_rgb(hue, 1.0, 1.0); // full saturation & value
+                cr.set_source_rgb(r, g, b);
+
+                //cr.set_source_rgb(color.red as f64, color.green as f64, color.blue as f64);
+                //cr.set_source_rgb(color.hue as f64, 0f64, 0f64);
                 cr.move_to(points[0].0, points[0].1);
                 cr.line_to(points[1].0, points[1].1);
                 cr.line_to(points[2].0, points[2].1);
@@ -84,9 +103,10 @@ impl ColorPicker {
 
                     let dx = x - cx;
                     let dy = y - cy;
-                    let angle = dy.atan2(dx);
-                    *mouse_angle.borrow_mut() = angle;
 
+                    // Nullpunkt oben
+                    let angle = dx.atan2(-dy);
+                    *mouse_angle.borrow_mut() = angle;
                     drawing_clone.queue_draw();
                 }
             });
@@ -125,12 +145,16 @@ impl ColorPicker {
         root.append(&switcher);
         root.append(&stack);
 
-        Self { root }
+        Self { root, color }
     }
 
     pub fn widget(&self) -> &GtkBox {
         &self.root
     }
+}
+
+pub fn map( x: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32, ) -> f32 {
+    (x - in_min) / (in_max - in_min) * (out_max - out_min) + out_min
 }
 
 // HSV -> RGB Hilfsfunktion

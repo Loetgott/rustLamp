@@ -1,5 +1,6 @@
 mod color_picker;
-mod artNetSender;
+mod art_net_sender;
+mod color;
 
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow};
@@ -17,7 +18,9 @@ fn main() {
         let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
         window1.set_child(Some(&main_box));
 
-        let color_picker = ColorPicker::new();
+        let color = color::Color::new();
+
+        let color_picker = ColorPicker::new(color);
         main_box.append(color_picker.widget());
 
         let button = gtk4::Button::with_label("anwenden!");
