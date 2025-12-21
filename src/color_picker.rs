@@ -6,11 +6,11 @@ use crate::color::Color;
 
 pub struct ColorPicker {
     root: GtkBox,
-    color: Color,
+    color: Rc<RefCell<Color>>,
 }
 
 impl ColorPicker {
-    pub fn new(mut color: Color) -> Self {
+    pub fn new(color: Rc<RefCell<Color>>) -> Self {
 
         // Winkel der Maus & Linksklickstatus
         let mouse_angle = Rc::new(RefCell::new(0.0));
@@ -33,6 +33,7 @@ impl ColorPicker {
         // Draw-Funktion
         {
             let mouse_angle = mouse_angle.clone();
+            let color_for_draw = color.clone();
             drawing.set_draw_func(move |_, cr, width, height| {
                 let cx = width as f64 / 2.0;
                 let cy = height as f64 / 2.0;
@@ -68,8 +69,8 @@ impl ColorPicker {
                 let angle = -*mouse_angle.borrow(); // [-π, π], 0 oben
                 // Negieren, um Uhrzeigersinn zu bekommen
                 let hue = ((-angle).rem_euclid(2.0 * std::f64::consts::PI)) / (2.0 * std::f64::consts::PI);
-                println!("{}", hue);
-                color.set_hsv(
+                //println!("{}", hue);
+                color_for_draw.borrow_mut().set_hsv(
                     map(hue as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16,
                     1,
                     1,
@@ -145,7 +146,7 @@ impl ColorPicker {
         root.append(&switcher);
         root.append(&stack);
 
-        Self { root, color }
+        Self {root, color,}
     }
 
     pub fn widget(&self) -> &GtkBox {

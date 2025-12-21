@@ -30,8 +30,6 @@ impl Color {
         }
     }
 
-    /* ================= RGB ================= */
-
     pub fn set_rgb(&mut self, red: u16, green: u16, blue: u16) {
         self.red = red;
         self.green = green;
@@ -72,12 +70,11 @@ impl Color {
         self.hue = (h * (u16::MAX as f32 / 6.0)) as u16;
     }
 
-    /* ================= HSV ================= */
-
     pub fn set_hsv(&mut self, hue: u16, saturation: u16, value: u16) {
         self.hue = hue;
         self.saturation = saturation;
         self.value = value;
+        println!("HSV: {}, {}, {}", hue, saturation, value);
 
         let h = hue as f32 * 6.0 / u16::MAX as f32;
         let s = saturation as f32 / u16::MAX as f32;
@@ -93,17 +90,17 @@ impl Color {
             h if h < 3.0 => (0.0, c, x),
             h if h < 4.0 => (0.0, x, c),
             h if h < 5.0 => (x, 0.0, c),
-            _            => (c, 0.0, x),
+            _                 => (c, 0.0, x),
         };
 
         self.red   = ((r1 + m) * u16::MAX as f32) as u16;
         self.green = ((g1 + m) * u16::MAX as f32) as u16;
         self.blue  = ((b1 + m) * u16::MAX as f32) as u16;
 
-        /* --- CMY --- */
         self.cyan = u16::MAX - self.red;
         self.magenta = u16::MAX - self.green;
         self.yellow = u16::MAX - self.blue;
+        println!("RGB: {}, {}, {}", self.red, self.green, self.blue);
     }
 
     pub fn map_rgb_to_unit(&self) -> (f32, f32, f32) {

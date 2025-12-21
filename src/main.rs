@@ -2,6 +2,8 @@ mod color_picker;
 mod art_net_sender;
 mod color;
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow};
 use crate::color_picker::ColorPicker;
@@ -18,12 +20,23 @@ fn main() {
         let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
         window1.set_child(Some(&main_box));
 
-        let color = color::Color::new();
+        let mut color = color::Color::new();
 
-        let color_picker = ColorPicker::new(color);
+
+        let color = Rc::new(RefCell::new(color::Color::new()));
+        let color_picker = ColorPicker::new(color.clone());
         main_box.append(color_picker.widget());
 
-        let button = gtk4::Button::with_label("anwenden!");
+        let color_clone = color.clone();
+        let button = gtk4::Button::with_label("Farbe ausgeben");
+        button.connect_clicked(move |_| {
+            let c = color_clone.borrow();
+            println!(
+                "Gewählte Farbe - R: {}, G: {}, B: {}",
+                c.red, c.green, c.blue
+            );
+        });
+
         main_box.append(&button);
         window1.show();
 
