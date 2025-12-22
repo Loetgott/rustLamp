@@ -74,7 +74,7 @@ impl Color {
         self.hue = hue;
         self.saturation = saturation;
         self.value = value;
-        //println!("HSV: {}, {}, {}", hue, saturation, value);
+        println!("HSV: {}, {}, {}", hue, saturation, value);
 
         let h = hue as f32 * 6.0 / u16::MAX as f32;
         let s = saturation as f32 / u16::MAX as f32;

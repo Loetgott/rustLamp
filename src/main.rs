@@ -20,10 +20,9 @@ fn main() {
         let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
         window1.set_child(Some(&main_box));
 
-        let mut color = color::Color::new();
+        let color = color::Color::new();
 
-
-        let color = Rc::new(RefCell::new(color::Color::new()));
+        let color = Rc::new(RefCell::new(color));
         let color_picker = ColorPicker::new(color.clone());
         main_box.append(color_picker.widget());
 
@@ -39,9 +38,6 @@ fn main() {
 
         main_box.append(&button);
         window1.show();
-
-
     });
-
     app.run();
 }

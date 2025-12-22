@@ -33,6 +33,11 @@ impl ColorPicker {
         drawing.set_content_width(500);
         drawing.set_content_height(500);
 
+        //3 Punkte des Dreiecks
+        let point_a = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+        let point_b = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+        let point_c = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+
         // Draw-Funktion
         {
             let mouse_angle = mouse_angle.clone();
@@ -70,6 +75,10 @@ impl ColorPicker {
                     let y = cy + triangle_radius * angle.sin();
                     points.push((x, y));
                 }
+                // Ecken in die gemeinsamen RefCells schreiben
+                *point_a.borrow_mut() = points[0];
+                *point_b.borrow_mut() = points[1];
+                *point_c.borrow_mut() = points[2];
 
                 // Setze current hue im Color-Objekt
                 let angle = -*mouse_angle.borrow();
