@@ -1,5 +1,5 @@
 use gtk4::prelude::*;
-use gtk4::{self as gtk, Box as GtkBox, DrawingArea, Stack};
+use gtk4::{self as gtk, cairo, Box as GtkBox, DrawingArea, Stack};
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::color::Color;
@@ -66,28 +66,73 @@ impl ColorPicker {
                     points.push((x, y));
                 }
 
-                let angle = -*mouse_angle.borrow(); // [-π, π], 0 oben
-                // Negieren, um Uhrzeigersinn zu bekommen
+                let angle = -*mouse_angle.borrow();
                 let hue = ((-angle).rem_euclid(2.0 * std::f64::consts::PI)) / (2.0 * std::f64::consts::PI);
-                //println!("{}", hue);
                 color_for_draw.borrow_mut().set_hsv(
                     map(hue as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16,
                     1,
                     1,
                 );
 
+                let (h_r, h_g, h_b) = hsv_to_rgb(hue, 1.0, 1.0);
 
-                let (r, g, b) = hsv_to_rgb(hue, 1.0, 1.0); // full saturation & value
-                cr.set_source_rgb(r, g, b);
-
-                //cr.set_source_rgb(color.red as f64, color.green as f64, color.blue as f64);
-                //cr.set_source_rgb(color.hue as f64, 0f64, 0f64);
+                // Pfad (nur zur Berechnung/Optional)
                 cr.move_to(points[0].0, points[0].1);
                 cr.line_to(points[1].0, points[1].1);
                 cr.line_to(points[2].0, points[2].1);
                 cr.close_path();
-                cr.fill().unwrap();
-                cr.stroke().unwrap();
+
+                // Rastere das Dreieck in eine temporäre ImageSurface mit baryzentrischer Mischung
+                let w = width as i32;
+                let h = height as i32;
+                let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, w, h).unwrap();
+                let stride = surface.stride() as usize;
+                let mut data = surface.data().unwrap(); // <- mutable gemacht
+
+                // Eckfarben: points[0] = Hue, points[1] = Weiß, points[2] = Schwarz
+                let c0 = (h_r, h_g, h_b);
+                let c1 = (1.0, 1.0, 1.0);
+                let c2 = (0.0, 0.0, 0.0);
+
+                let (x0, y0) = points[0];
+                let (x1, y1) = points[1];
+                let (x2, y2) = points[2];
+
+                // Begrenzungsrechteck
+                let min_x = (points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min).floor() as i32).clamp(0, w-1);
+                let max_x = (points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max).ceil() as i32).clamp(0, w-1);
+                let min_y = (points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min).floor() as i32).clamp(0, h-1);
+                let max_y = (points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max).ceil() as i32).clamp(0, h-1);
+
+                let denom = (y1 - y2)*(x0 - x2) + (x2 - x1)*(y0 - y2);
+
+                for py in min_y..=max_y {
+                    for px in min_x..=max_x {
+                        let fx = px as f64 + 0.5;
+                        let fy = py as f64 + 0.5;
+                        let w0 = ((y1 - y2)*(fx - x2) + (x2 - x1)*(fy - y2)) / denom;
+                        let w1 = ((y2 - y0)*(fx - x2) + (x0 - x2)*(fy - y2)) / denom;
+                        let w2 = 1.0 - w0 - w1;
+                        if w0 >= -1e-6 && w1 >= -1e-6 && w2 >= -1e-6 {
+                            let rr = w0*c0.0 + w1*c1.0 + w2*c2.0;
+                            let gg = w0*c0.1 + w1*c1.1 + w2*c2.1;
+                            let bb = w0*c0.2 + w1*c1.2 + w2*c2.2;
+                            let r8 = (rr * 255.0).clamp(0.0, 255.0) as u32;
+                            let g8 = (gg * 255.0).clamp(0.0, 255.0) as u32;
+                            let b8 = (bb * 255.0).clamp(0.0, 255.0) as u32;
+                            let a8 = 255u32;
+                            let pixel = (a8 << 24) | (r8 << 16) | (g8 << 8) | b8;
+                            let bytes = pixel.to_ne_bytes();
+                            let idx = py as usize * stride + px as usize * 4;
+                            data[idx..idx+4].copy_from_slice(&bytes);
+                        }
+                    }
+                }
+
+                drop(data); // <- wichtige Freigabe der mutablen Borrow vor Verwendung von `surface` erneut
+
+                cr.set_source_surface(&surface, 0.0, 0.0).unwrap();
+                cr.paint().unwrap();
             });
         }
 
