@@ -74,7 +74,7 @@ impl Color {
         self.hue = hue;
         self.saturation = saturation;
         self.value = value;
-        println!("HSV: {}, {}, {}", hue, saturation, value);
+        //println!("HSV: {}, {}, {}", hue, saturation, value);
 
         let h = hue as f32 * 6.0 / u16::MAX as f32;
         let s = saturation as f32 / u16::MAX as f32;
@@ -100,7 +100,7 @@ impl Color {
         self.cyan = u16::MAX - self.red;
         self.magenta = u16::MAX - self.green;
         self.yellow = u16::MAX - self.blue;
-        println!("RGB: {}, {}, {}", self.red, self.green, self.blue);
+        //println!("RGB: {}, {}, {}", self.red, self.green, self.blue);
     }
 
     pub fn map_rgb_to_unit(&self) -> (f32, f32, f32) {
