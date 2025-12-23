@@ -12,10 +12,7 @@ pub struct ColorPicker {
 
 impl ColorPicker {
     pub fn new(color: Rc<RefCell<Color>>) -> Self {
-        // radius als geteilter, copybarer Zustand
         let circle_radius = Rc::new(Cell::new(0.0_f64));
-
-        // Winkel der Maus & Linksklickstatus
         let mouse_angle = Rc::new(RefCell::new(0.0_f64));
         let left_button_pressed = Rc::new(RefCell::new(false));
 
@@ -28,15 +25,22 @@ impl ColorPicker {
         cmy_box.set_visible(true);
         let hsv_box = GtkBox::new(gtk::Orientation::Horizontal, 4);
 
-        // Zeichnungsfläche
         let drawing = DrawingArea::new();
         drawing.set_content_width(500);
         drawing.set_content_height(500);
 
-        //3 Punkte des Dreiecks
         let point_a = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
         let point_b = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
         let point_c = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+
+        // ⚡ Punkt-Klone für Draw- und Click-Handler getrennt
+        let point_a_for_draw = point_a.clone();
+        let point_b_for_draw = point_b.clone();
+        let point_c_for_draw = point_c.clone();
+
+        let point_a_for_click = point_a.clone();
+        let point_b_for_click = point_b.clone();
+        let point_c_for_click = point_c.clone();
 
         // Draw-Funktion
         {
@@ -48,10 +52,8 @@ impl ColorPicker {
                 let cy = height as f64 / 2.0;
                 let circle_width = 10.0;
                 let radius = cx.min(cy) - circle_width;
-                // Radius in die gemeinsame Cell schreiben
                 circle_radius.set(radius - circle_width / 1.50);
 
-                // HSV-Ring zeichnen
                 let offset = -std::f64::consts::PI / 2.0;
                 for i in 0..360 {
                     let angle1 = (i as f64).to_radians() + offset - 0.005;
@@ -63,7 +65,6 @@ impl ColorPicker {
                     cr.stroke().unwrap();
                 }
 
-                // Dreieck in der Mitte (Ecken berechnen)
                 let triangle_radius = radius - circle_width;
                 let triangle_angle = 2.0 * std::f64::consts::PI / 3.0;
                 let angle_offset = *mouse_angle.borrow();
@@ -75,12 +76,12 @@ impl ColorPicker {
                     let y = cy + triangle_radius * angle.sin();
                     points.push((x, y));
                 }
-                // Ecken in die gemeinsamen RefCells schreiben
-                *point_a.borrow_mut() = points[0];
-                *point_b.borrow_mut() = points[1];
-                *point_c.borrow_mut() = points[2];
 
-                // Setze current hue im Color-Objekt
+                // Punkte in Draw-RefCells schreiben
+                *point_a_for_draw.borrow_mut() = points[0];
+                *point_b_for_draw.borrow_mut() = points[1];
+                *point_c_for_draw.borrow_mut() = points[2];
+
                 let angle = -*mouse_angle.borrow();
                 let hue = ((-angle).rem_euclid(2.0 * std::f64::consts::PI)) / (2.0 * std::f64::consts::PI);
                 color_for_draw.borrow_mut().set_hsv(
@@ -90,18 +91,16 @@ impl ColorPicker {
                 );
                 let (h_r, h_g, h_b) = hsv_to_rgb(hue, 1.0, 1.0);
 
-                // Pfad nur zur Position (kein Stroke für Umriss)
                 cr.move_to(points[0].0, points[0].1);
                 cr.line_to(points[1].0, points[1].1);
                 cr.line_to(points[2].0, points[2].1);
                 cr.close_path();
 
-                // Rastere das Dreieck in eine temporäre ImageSurface (baryzentrisch)
                 let w = width as i32;
                 let h = height as i32;
                 let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, w, h).unwrap();
                 let stride = surface.stride() as usize;
-                let mut data = surface.data().unwrap(); // mutable borrow
+                let mut data = surface.data().unwrap();
 
                 let c0 = (h_r, h_g, h_b);
                 let c1 = (1.0, 1.0, 1.0);
@@ -141,14 +140,14 @@ impl ColorPicker {
                     }
                 }
 
-                drop(data); // wichtige Freigabe der mutablen Borrow
-
+                drop(data);
                 cr.set_source_surface(&surface, 0.0, 0.0).unwrap();
                 cr.paint().unwrap();
             });
         }
 
-        // Mausbewegung (ziehen)
+        // Mausbewegung etc. bleibt unverändert...
+        // Klick-Handler nutzt nun die _for_click Klone
         let motion_controller = gtk4::EventControllerMotion::new();
         {
             let mouse_angle = mouse_angle.clone();
@@ -168,59 +167,73 @@ impl ColorPicker {
         }
         drawing.add_controller(motion_controller);
 
-        // Klick-Geste: Position und Abstand zur Mitte verwenden
         let click = gtk4::GestureClick::new();
         click.set_button(1);
-        {
-            let left_button_pressed = left_button_pressed.clone();
-            let mouse_angle = mouse_angle.clone();
-            let drawing_clone = drawing.clone();
-            let circle_radius = circle_radius.clone();
-            click.connect_pressed(move |_, _, x, y| {
-                let cx = drawing_clone.width() as f64 / 2.0;
-                let cy = drawing_clone.height() as f64 / 2.0;
-                let dx = x - cx;
-                let dy = y - cy;
-                let distance = (dx * dx + dy * dy).sqrt();
 
-                let angle = dx.atan2(-dy);
+        let drawing_for_pressed = drawing.clone();
+        let drawing_for_released = drawing.clone();
 
-                // prüfe gegen gespeicherten Radius
-                if distance >= circle_radius.get() {
-                    *mouse_angle.borrow_mut() = angle;
-                    *left_button_pressed.borrow_mut() = true;
-                }
+        let pa = point_a_for_click.clone();
+        let pb = point_b_for_click.clone();
+        let pc = point_c_for_click.clone();
 
-                drawing_clone.queue_draw();
-                println!("Abstand zur Mitte: {:.2}", distance);
-            });
-        }
-        {
-            let left_button_pressed = left_button_pressed.clone();
-            let mouse_angle = mouse_angle.clone();
-            let drawing_clone = drawing.clone();
-            click.connect_released(move |_, _, x, y| {
-                let cx = drawing_clone.width() as f64 / 2.0;
-                let cy = drawing_clone.height() as f64 / 2.0;
-                let dx = x - cx;
-                let dy = y - cy;
-                let distance = (dx * dx + dy * dy).sqrt();
-                let angle = dx.atan2(-dy);
-                if distance >= circle_radius.get() || *left_button_pressed.borrow() {
-                    *mouse_angle.borrow_mut() = angle;
-                    *left_button_pressed.borrow_mut() = false;
-                }
-                drawing_clone.queue_draw();
-                println!("Losgelassen, Abstand: {:.2}", distance);
-            });
-        }
+        let left_button_pressed_pressed = left_button_pressed.clone();
+        let left_button_pressed_released = left_button_pressed.clone();
+
+        let mouse_angle_pressed = mouse_angle.clone();
+        let mouse_angle_released = mouse_angle.clone();
+
+        let circle_radius_pressed = circle_radius.clone();
+        let circle_radius_released = circle_radius.clone();
+
+        click.connect_pressed(move |_, _, x, y| {
+            let cx = drawing_for_pressed.width() as f64 / 2.0;
+            let cy = drawing_for_pressed.height() as f64 / 2.0;
+            let dx = x - cx;
+            let dy = y - cy;
+            let distance = (dx*dx + dy*dy).sqrt();
+            let angle = dx.atan2(-dy);
+
+            if distance >= circle_radius_pressed.get() {
+                *mouse_angle_pressed.borrow_mut() = angle;
+                *left_button_pressed_pressed.borrow_mut() = true;
+            }
+
+            let pa = pa.borrow();
+            let pb = pb.borrow();
+            let pc = pc.borrow();
+
+            let _distance_a = ((x - pa.0).powi(2) + (y - pa.1).powi(2)).sqrt();
+            let _distance_b = ((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
+            let _distance_c = ((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
+
+            drawing_for_pressed.queue_draw();
+            println!("Abstand zur Mitte: {:.2}", distance);
+        });
+
+        click.connect_released(move |_, _, x, y| {
+            let cx = drawing_for_released.width() as f64 / 2.0;
+            let cy = drawing_for_released.height() as f64 / 2.0;
+            let dx = x - cx;
+            let dy = y - cy;
+            let distance = (dx*dx + dy*dy).sqrt();
+            let angle = dx.atan2(-dy);
+
+            if distance >= circle_radius_released.get() || *left_button_pressed_released.borrow() {
+                *mouse_angle_released.borrow_mut() = angle;
+                *left_button_pressed_released.borrow_mut() = false;
+            }
+
+            drawing_for_released.queue_draw();
+            println!("Losgelassen, Abstand: {:.2}", distance);
+        });
+
         drawing.add_controller(click);
 
         drawing.set_visible(true);
         hsv_box.append(&drawing);
         hsv_box.set_visible(true);
 
-        // Stack + Switcher
         stack.add_titled(&rgb_box, Some("rgb"), "RGB");
         stack.add_titled(&cmy_box, Some("cmy"), "CMY");
         stack.add_titled(&hsv_box, Some("hsv"), "HSV");
@@ -238,6 +251,7 @@ impl ColorPicker {
         &self.root
     }
 }
+
 pub fn map(x: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
     (x - in_min) / (in_max - in_min) * (out_max - out_min) + out_min
 }
@@ -248,7 +262,6 @@ fn hsv_to_rgb(h: f64, s: f64, v: f64) -> (f64, f64, f64) {
     let p = v * (1.0 - s);
     let q = v * (1.0 - f * s);
     let t = v * (1.0 - (1.0 - f) * s);
-
     match i as i32 % 6 {
         0 => (v, t, p),
         1 => (q, v, p),
