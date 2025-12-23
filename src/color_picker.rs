@@ -145,6 +145,9 @@ impl ColorPicker {
                 cr.paint().unwrap();
             });
         }
+        let pa = point_a_for_click.clone();
+        let pb = point_b_for_click.clone();
+        let pc = point_c_for_click.clone();
 
         // Mausbewegung etc. bleibt unverändert...
         // Klick-Handler nutzt nun die _for_click Klone
@@ -162,6 +165,18 @@ impl ColorPicker {
                     let angle = dx.atan2(-dy);
                     *mouse_angle.borrow_mut() = angle;
                     drawing_clone.queue_draw();
+
+                    let pa = pa.borrow();
+                    let pb = pb.borrow();
+                    let pc = pc.borrow();
+
+                    let distance_a = calculate_distance((x,y),(pa.0,pa.1));//((x - pa.0).powi(2) + (y - pa.1).powi(2)).sqrt();
+                    let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
+                    let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
+
+                    println!("{}", distance_a);
+                    println!("{}", distance_b);
+                    println!("{}", distance_c);
                 }
             });
         }
@@ -203,13 +218,22 @@ impl ColorPicker {
             let pb = pb.borrow();
             let pc = pc.borrow();
 
-            let _distance_a = ((x - pa.0).powi(2) + (y - pa.1).powi(2)).sqrt();
-            let _distance_b = ((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
-            let _distance_c = ((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
+            let distance_a = calculate_distance((x,y),(pa.0,pa.1));//((x - pa.0).powi(2) + (y - pa.1).powi(2)).sqrt();
+            let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
+            let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
+
+            println!("{}", distance_a);
+            println!("{}", distance_b);
+            println!("{}", distance_c);
+            println!("---");
 
             drawing_for_pressed.queue_draw();
-            println!("Abstand zur Mitte: {:.2}", distance);
+            //println!("Abstand zur Mitte: {:.2}", distance);
         });
+
+        let pa = point_a_for_click.clone();
+        let pb = point_b_for_click.clone();
+        let pc = point_c_for_click.clone();
 
         click.connect_released(move |_, _, x, y| {
             let cx = drawing_for_released.width() as f64 / 2.0;
@@ -224,11 +248,80 @@ impl ColorPicker {
                 *left_button_pressed_released.borrow_mut() = false;
             }
 
+            let pa = pa.borrow();
+            let pb = pb.borrow();
+            let pc = pc.borrow();
+
+            let distance_a = calculate_distance((x,y),(pa.0,pa.1));//((x - pa.0).powi(2) + (y - pa.1).powi(2)).sqrt();
+            let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
+            let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
+
+            println!("A: {}", distance_a);
+            println!("B: {}", distance_b);
+            println!("C: {}", distance_c);
+            println!("---");
+
             drawing_for_released.queue_draw();
-            println!("Losgelassen, Abstand: {:.2}", distance);
+            //println!("Losgelassen, Abstand: {:.2}", distance);
+        });
+        drawing.add_controller(click);
+
+        let drag = gtk4::GestureDrag::new();
+
+        let pa = point_a_for_click.clone();
+        let pb = point_b_for_click.clone();
+        let pc = point_c_for_click.clone();
+
+        let drag_start = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+
+        drag.connect_drag_begin({
+            let drag_start = drag_start.clone();
+            move |_, x, y| {
+                // x,y sind HIER absolut
+                *drag_start.borrow_mut() = (x, y);
+            }
         });
 
-        drawing.add_controller(click);
+        drag.connect_drag_update({
+            let drag_start = drag_start.clone();
+            let pa = point_a_for_click.clone();
+            let pb = point_b_for_click.clone();
+            let pc = point_c_for_click.clone();
+
+            move |_, dx, dy| { //TODO: der ganze bums macht etwas, bloß nicht das richtige...
+                // dx,dy sind RELATIV
+                let (sx, sy) = *drag_start.borrow();
+                let x = sx + dx;
+                let y = sy + dy;
+
+                let pa = pa.borrow();
+                let pb = pb.borrow();
+                let pc = pc.borrow();
+
+                let vec_b_c = (pc.0 - pb.0, pc.1 - pb.1);
+                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
+
+                //a = mouse position
+                let vec_b_a = (x - pb.0, y - pb.1);
+                let vec_c_a = (x - pc.0, y - pc.1);
+
+                let scalar_bc_ba =
+                    (vec_b_c.0 * vec_b_a.0 + vec_b_c.1 * vec_b_a.1)
+                        / (calculate_distance(pb.clone(), (x,y))
+                        * calculate_distance(pb.clone(), (x,y)));
+
+
+                let value_angle = scalar_bc_ba.acos();
+                println!("angle: {}", value_angle);
+
+                println!("A: {}", calculate_distance((x, y), (pa.0, pa.1)));
+                println!("B: {}", calculate_distance((x, y), (pb.0, pb.1)));
+                println!("C: {}", calculate_distance((x, y), (pc.0, pc.1)));
+                println!("---");
+            }
+        });
+
+        drawing.add_controller(drag);
 
         drawing.set_visible(true);
         hsv_box.append(&drawing);
@@ -255,6 +348,13 @@ impl ColorPicker {
 pub fn map(x: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
     (x - in_min) / (in_max - in_min) * (out_max - out_min) + out_min
 }
+
+fn calculate_distance(p1: (f64, f64), p2: (f64, f64)) -> f64 {
+    let dx = p2.0 - p1.0;
+    let dy = p2.1 - p1.1;
+    (dx * dx + dy * dy).sqrt()
+}
+
 
 fn hsv_to_rgb(h: f64, s: f64, v: f64) -> (f64, f64, f64) {
     let i = (h * 6.0).floor();
