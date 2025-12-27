@@ -298,32 +298,63 @@ impl ColorPicker {
                 let pb = pb.borrow();
                 let pc = pc.borrow();
 
-                //a = mouse position
+                const MAX_ANGLE: f64 = std::f64::consts::PI / 3.0; // 60°
+
+                // ======================
+                // VALUE (Winkel bei B)
+                // ======================
+
                 let vec_b_a = (x - pb.0, y - pb.1);
-                let vec_c_a = (x - pc.0, y - pc.1);
-
                 let vec_b_c = (pc.0 - pb.0, pc.1 - pb.1);
-                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
 
-                let dot = vec_b_c.0 * vec_b_a.0 + vec_b_c.1 * vec_b_a.1;
+                let dot_val = vec_b_a.0 * vec_b_c.0 + vec_b_a.1 * vec_b_c.1;
 
+                let len_ba = calculate_distance((x, y), pb.clone());
                 let len_bc = calculate_distance(pb.clone(), pc.clone());
-                let len_ba = calculate_distance(pb.clone(), (x, y));
 
-                if len_bc < 1e-6 || len_ba < 1e-6 {
+                if len_ba < 1e-6 || len_bc < 1e-6 {
                     return;
                 }
 
-                let mut cos_angle = dot / (len_bc * len_ba);
-                cos_angle = cos_angle.clamp(-1.0, 1.0);
+                let mut cos_val = dot_val / (len_ba * len_bc);
+                cos_val = cos_val.clamp(-1.0, 1.0);
 
-                let value_angle = cos_angle.acos();
+                let value_angle = cos_val.acos();
 
-                println!("angle: {}", value_angle);
+                let value = (value_angle / MAX_ANGLE).clamp(0.0, 1.0);
 
-                println!("A: {}", calculate_distance((x, y), (pa.0, pa.1)));
-                println!("B: {}", calculate_distance((x, y), (pb.0, pb.1)));
-                println!("C: {}", calculate_distance((x, y), (pc.0, pc.1)));
+                // ===========================
+                // SATURATION (Winkel bei C)
+                // ===========================
+
+                let vec_c_a = (x - pc.0, y - pc.1);
+                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
+
+                let dot_sat = vec_c_a.0 * vec_c_b.0 + vec_c_a.1 * vec_c_b.1;
+
+                let len_ca = calculate_distance((x, y), pc.clone());
+                let len_cb = calculate_distance(pb.clone(), pc.clone());
+
+                if len_ca < 1e-6 || len_cb < 1e-6 {
+                    return;
+                }
+
+                let mut cos_sat = dot_sat / (len_ca * len_cb);
+                cos_sat = cos_sat.clamp(-1.0, 1.0);
+
+                let saturation_angle = cos_sat.acos();
+
+                let saturation = (saturation_angle / MAX_ANGLE).clamp(0.0, 1.0);
+
+                // ======================
+                // DEBUG
+                // ======================
+
+                println!("value      : {:.4}", value);
+                println!("saturation : {:.4}", saturation);
+                println!("A dist: {}", calculate_distance((x, y), (pa.0, pa.1)));
+                println!("B dist: {}", calculate_distance((x, y), (pb.0, pb.1)));
+                println!("C dist: {}", calculate_distance((x, y), (pc.0, pc.1)));
                 println!("---");
             }
         });
