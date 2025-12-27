@@ -288,7 +288,7 @@ impl ColorPicker {
             let pb = point_b_for_click.clone();
             let pc = point_c_for_click.clone();
 
-            move |_, dx, dy| { //TODO: der ganze bums macht etwas, bloß nicht das richtige...
+            move |_, dx, dy| {
                 // dx,dy sind RELATIV
                 let (sx, sy) = *drag_start.borrow();
                 let x = sx + dx;
@@ -298,20 +298,27 @@ impl ColorPicker {
                 let pb = pb.borrow();
                 let pc = pc.borrow();
 
-                let vec_b_c = (pc.0 - pb.0, pc.1 - pb.1);
-                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
-
                 //a = mouse position
                 let vec_b_a = (x - pb.0, y - pb.1);
                 let vec_c_a = (x - pc.0, y - pc.1);
 
-                let scalar_bc_ba =
-                    (vec_b_c.0 * vec_b_a.0 + vec_b_c.1 * vec_b_a.1)
-                        / (calculate_distance(pb.clone(), (x,y))
-                        * calculate_distance(pb.clone(), (x,y)));
+                let vec_b_c = (pc.0 - pb.0, pc.1 - pb.1);
+                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
 
+                let dot = vec_b_c.0 * vec_b_a.0 + vec_b_c.1 * vec_b_a.1;
 
-                let value_angle = scalar_bc_ba.acos();
+                let len_bc = calculate_distance(pb.clone(), pc.clone());
+                let len_ba = calculate_distance(pb.clone(), (x, y));
+
+                if len_bc < 1e-6 || len_ba < 1e-6 {
+                    return;
+                }
+
+                let mut cos_angle = dot / (len_bc * len_ba);
+                cos_angle = cos_angle.clamp(-1.0, 1.0);
+
+                let value_angle = cos_angle.acos();
+
                 println!("angle: {}", value_angle);
 
                 println!("A: {}", calculate_distance((x, y), (pa.0, pa.1)));
