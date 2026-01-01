@@ -341,6 +341,7 @@ impl ColorPicker {
 
                 let mut cos_sat = dot_sat / (len_ca * len_cb);
                 cos_sat = cos_sat.clamp(-1.0, 1.0);
+                println!("{}", cos_sat);
 
                 let saturation_angle = cos_sat.acos();
 
