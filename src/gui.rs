@@ -7,16 +7,17 @@ use crate::color;
 
 use crate::color_picker::ColorPicker;
 
-pub(crate) struct gui{
+pub(crate) struct Gui{
     
 }
 
-impl gui{
+impl Gui{
     pub(crate) fn new() -> Self {
         let app = Application::new(Some("com.loetgott.rustLamp"), Default::default());
 
         app.connect_activate(|app| {
             let window1 = ApplicationWindow::new(app);
+            window1.style_context().add_class("dark");
             window1.set_title(Option::from("ColorPicker Test"));
             window1.set_decorated(true);
             window1.set_default_size(400, 300);
@@ -45,7 +46,7 @@ impl gui{
         });
         app.run();
         
-        let gui = gui{};
+        let gui = Gui{};
         gui
     }
 }
