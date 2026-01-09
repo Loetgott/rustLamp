@@ -12,6 +12,8 @@ pub struct ColorPicker {
 
 impl ColorPicker {
     pub fn new(color: Rc<RefCell<Color>>) -> Self {
+        let color_rc = Rc::clone(&color);
+
         let circle_radius = Rc::new(Cell::new(0.0_f64));
         let mouse_angle = Rc::new(RefCell::new(0.0_f64));
         let left_button_pressed = Rc::new(RefCell::new(false));
@@ -45,7 +47,7 @@ impl ColorPicker {
         // Draw-Funktion
         {
             let mouse_angle = mouse_angle.clone();
-            let color_for_draw = color.clone();
+            let color_for_draw = color_rc.clone();
             let circle_radius = circle_radius.clone();
             drawing.set_draw_func(move |_, cr, width, height| {
                 let cx = width as f64 / 2.0;
@@ -84,11 +86,11 @@ impl ColorPicker {
 
                 let angle = -*mouse_angle.borrow();
                 let hue = ((-angle).rem_euclid(2.0 * std::f64::consts::PI)) / (2.0 * std::f64::consts::PI);
-                color_for_draw.borrow_mut().set_hsv(
+
+                color_rc.borrow_mut().set_hue(
                     map(hue as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16,
-                    1,
-                    1,
                 );
+
                 let (h_r, h_g, h_b) = hsv_to_rgb(hue, 1.0, 1.0);
 
                 cr.move_to(points[0].0, points[0].1);
@@ -174,9 +176,9 @@ impl ColorPicker {
                     let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
                     let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
 
-                    println!("{}", distance_a);
-                    println!("{}", distance_b);
-                    println!("{}", distance_c);
+                    //println!("{}", distance_a);
+                    //println!("{}", distance_b);
+                    //println!("{}", distance_c);
                 }
             });
         }
@@ -222,10 +224,10 @@ impl ColorPicker {
             let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
             let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
 
-            println!("{}", distance_a);
-            println!("{}", distance_b);
-            println!("{}", distance_c);
-            println!("---");
+            //println!("{}", distance_a);
+            //println!("{}", distance_b);
+            //println!("{}", distance_c);
+            //println!("---");
 
             drawing_for_pressed.queue_draw();
             //println!("Abstand zur Mitte: {:.2}", distance);
@@ -256,10 +258,10 @@ impl ColorPicker {
             let distance_b = calculate_distance((x,y),(pb.0,pb.1));//((x - pb.0).powi(2) + (y - pb.1).powi(2)).sqrt();
             let distance_c = calculate_distance((x,y),(pc.0,pc.1));//((x - pc.0).powi(2) + (y - pc.1).powi(2)).sqrt();
 
-            println!("A: {}", distance_a);
-            println!("B: {}", distance_b);
-            println!("C: {}", distance_c);
-            println!("---");
+            //println!("A: {}", distance_a);
+            //println!("B: {}", distance_b);
+            //println!("C: {}", distance_c);
+            //println!("---");
 
             drawing_for_released.queue_draw();
             //println!("Losgelassen, Abstand: {:.2}", distance);
@@ -267,10 +269,6 @@ impl ColorPicker {
         drawing.add_controller(click);
 
         let drag = gtk4::GestureDrag::new();
-
-        let pa = point_a_for_click.clone();
-        let pb = point_b_for_click.clone();
-        let pc = point_c_for_click.clone();
 
         let drag_start = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
 
@@ -283,82 +281,71 @@ impl ColorPicker {
         });
 
         drag.connect_drag_update({
+            let drag = gtk4::GestureDrag::new();
+
             let drag_start = drag_start.clone();
             let pa = point_a_for_click.clone();
             let pb = point_b_for_click.clone();
             let pc = point_c_for_click.clone();
+            let color_rc_clone = color_rc.clone(); // 🔹 Clone vor der Closure
 
-            move |_, dx, dy| {
-                // dx,dy sind RELATIV
+            drag.connect_drag_update(move |_, dx, dy| {
+                // ======================
+                // Drag-Position
+                // ======================
                 let (sx, sy) = *drag_start.borrow();
                 let x = sx + dx;
                 let y = sy + dy;
 
-                let pa = pa.borrow();
-                let pb = pb.borrow();
-                let pc = pc.borrow();
-
-                const MAX_ANGLE: f64 = std::f64::consts::PI / 3.0; // 60°
-
                 // ======================
-                // VALUE (Winkel bei B)
+                // Punkte EINMAL borrowen
                 // ======================
+                let (pax, pay) = *pa.borrow();
+                let (pbx, pby) = *pb.borrow();
+                let (pcx, pcy) = *pc.borrow();
 
-                let vec_b_a = (x - pb.0, y - pb.1);
-                let vec_b_c = (pc.0 - pb.0, pc.1 - pb.1);
+                const MAX_ANGLE: f64 = std::f64::consts::PI / 3.0;
 
+                // VALUE
+                let vec_b_a = (x - pbx, y - pby);
+                let vec_b_c = (pcx - pbx, pcy - pby);
                 let dot_val = vec_b_a.0 * vec_b_c.0 + vec_b_a.1 * vec_b_c.1;
-
-                let len_ba = calculate_distance((x, y), pb.clone());
-                let len_bc = calculate_distance(pb.clone(), pc.clone());
-
-                if len_ba < 1e-6 || len_bc < 1e-6 {
-                    return;
-                }
-
+                let len_ba = calculate_distance((x, y), (pbx, pby));
+                let len_bc = calculate_distance((pbx, pby), (pcx, pcy));
+                if len_ba < 1e-6 || len_bc < 1e-6 { return; }
                 let mut cos_val = dot_val / (len_ba * len_bc);
                 cos_val = cos_val.clamp(-1.0, 1.0);
-
                 let value_angle = cos_val.acos();
-
                 let value = (value_angle / MAX_ANGLE).clamp(0.0, 1.0);
 
-                // ===========================
-                // SATURATION (Winkel bei C)
-                // ===========================
-
-                let vec_c_a = (x - pc.0, y - pc.1);
-                let vec_c_b = (pb.0 - pc.0, pb.1 - pc.1);
-
+                // SATURATION
+                let vec_c_a = (x - pcx, y - pcy);
+                let vec_c_b = (pbx - pcx, pby - pcy);
                 let dot_sat = vec_c_a.0 * vec_c_b.0 + vec_c_a.1 * vec_c_b.1;
-
-                let len_ca = calculate_distance((x, y), pc.clone());
-                let len_cb = calculate_distance(pb.clone(), pc.clone());
-
-                if len_ca < 1e-6 || len_cb < 1e-6 {
-                    return;
-                }
-
+                let len_ca = calculate_distance((x, y), (pcx, pcy));
+                let len_cb = calculate_distance((pbx, pby), (pcx, pcy));
+                if len_ca < 1e-6 || len_cb < 1e-6 { return; }
                 let mut cos_sat = dot_sat / (len_ca * len_cb);
                 cos_sat = cos_sat.clamp(-1.0, 1.0);
-                println!("{}", cos_sat);
-
                 let saturation_angle = cos_sat.acos();
-
                 let saturation = (saturation_angle / MAX_ANGLE).clamp(0.0, 1.0);
 
-                // ======================
-                // DEBUG
-                // ======================
+                // COLOR
+                {
+                    let mut c = color_rc_clone.borrow_mut(); // 🔹 direkt clone benutzen
+                    c.set_saturation(map(saturation as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16);
+                    c.set_value(map(value as f32, 0.0, 1.0, 0.0, u16::MAX as f32) as u16);
+                }
 
                 println!("value      : {:.4}", value);
                 println!("saturation : {:.4}", saturation);
-                println!("A dist: {}", calculate_distance((x, y), (pa.0, pa.1)));
-                println!("B dist: {}", calculate_distance((x, y), (pb.0, pb.1)));
-                println!("C dist: {}", calculate_distance((x, y), (pc.0, pc.1)));
                 println!("---");
-            }
+            });
+
+            drawing.add_controller(drag);
+
         });
+
 
         drawing.add_controller(drag);
 
@@ -376,7 +363,7 @@ impl ColorPicker {
         root.append(&switcher);
         root.append(&stack);
 
-        Self { root, color }
+        Self {root, color}
     }
 
     pub fn widget(&self) -> &GtkBox {

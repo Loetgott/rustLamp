@@ -103,6 +103,18 @@ impl Color {
         //println!("RGB: {}, {}, {}", self.red, self.green, self.blue);
     }
 
+    pub fn set_hue(&mut self, hue: u16) {
+        self.set_hsv(hue, self.saturation, self.value);
+    }
+
+    pub fn set_saturation(&mut self, saturation: u16) {
+        self.set_hsv(self.hue, saturation, self.value);
+    }
+
+    pub fn set_value(&mut self, value: u16) {
+        self.set_hsv(self.hue, self.saturation, value);
+    }
+
     pub fn map_rgb_to_unit(&self) -> (f32, f32, f32) {
         (
             u16_to_unit(self.red),
