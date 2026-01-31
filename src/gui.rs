@@ -36,7 +36,7 @@ impl Gui{
             button.connect_clicked(move |_| {
                 let c = color_clone.borrow();
                 println!(
-                    "Gewählte Farbe - R: {}, G: {}, B: {}",
+                    "Chosen color: - R: {}, G: {}, B: {}",
                     c.red, c.green, c.blue
                 );
             });
